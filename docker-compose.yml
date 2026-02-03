@@ -1,0 +1,76 @@
+services:
+  prometheus:
+    image: prom/prometheus:v2.51.2
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-remote-write-receiver
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:10.4.3
+    container_name: grafana
+    ports:
+      - "3001:3000"
+    environment:
+      # default admin/admin unless you change
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  k6:
+    image: grafana/k6:latest
+    container_name: k6
+    user: "0:0"
+    environment:
+      - K6_PROMETHEUS_RW_SERVER_URL=http://prometheus:9090/api/v1/write
+      - K6_PROMETHEUS_RW_TREND_STATS=p(95),p(99),min,max
+      - K6_SCRIPT=${K6_SCRIPT:-/scripts/k6-script.js}
+    volumes:
+      - ./scripts:/scripts
+      - ./reports:/reports
+    command: run --out experimental-prometheus-rw --summary-export /reports/summary.json ${K6_SCRIPT:-/scripts/k6-script.js}
+    depends_on:
+      - prometheus
+    restart: "no"
+
+  report-generator:
+    image: node:18-alpine
+    container_name: k6-report-generator
+    working_dir: /reports
+    user: "0:0"
+    environment:
+      - REPORT_PREFIX=${REPORT_PREFIX:-k6-summary}
+      - WAIT_SECONDS=${WAIT_SECONDS:-900}
+    volumes:
+      - ./reports:/reports
+    command: node /reports/generate-report.js
+    depends_on:
+      - k6
+    restart: on-failure
+
+  report-viewer:
+    image: nginx:alpine
+    container_name: k6-report-viewer
+    ports:
+      - "8080:80"
+    volumes:
+      - ./reports:/usr/share/nginx/html:ro
+    depends_on:
+      - report-generator
+    restart: unless-stopped
+
+volumes:
+  prometheus_data:
+  grafana_data:
