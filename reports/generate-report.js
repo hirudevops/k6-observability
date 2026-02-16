@@ -32,6 +32,10 @@ function buildHtml(summary) {
   const failedRate = getRate('http_req_failed');
   const failedRequests = Math.round(failedRate * totalRequests);
   const passRate = Math.max(0, Math.min(1, 1 - failedRate));
+  const checks = getMetric('checks');
+  const checksTotal = (checks.passes ?? 0) + (checks.fails ?? 0);
+  const checksPassRate = checksTotal > 0 ? (checks.passes / checksTotal) : 0;
+  const checksFailRate = checksTotal > 0 ? (checks.fails / checksTotal) : 0;
 
   return `
 <!DOCTYPE html>
@@ -63,6 +67,15 @@ function buildHtml(summary) {
       <div class="metric-box"><div class="metric-label">Avg Duration (ms)</div><div class="metric-value">${duration.avg ? Math.round(duration.avg) : 0}</div></div>
       <div class="metric-box"><div class="metric-label">P95 Duration (ms)</div><div class="metric-value">${duration['p(95)'] ? Math.round(duration['p(95)']) : 'N/A'}</div></div>
       <div class="metric-box"><div class="metric-label">P99 Duration (ms)</div><div class="metric-value">${duration['p(99)'] ? Math.round(duration['p(99)']) : 'N/A'}</div></div>
+    </div>
+
+    <h2>Checks</h2>
+    <div class="metrics">
+      <div class="metric-box"><div class="metric-label">Checks Total</div><div class="metric-value">${checksTotal}</div></div>
+      <div class="metric-box"><div class="metric-label">Checks Passed</div><div class="metric-value">${checks.passes ?? 0}</div></div>
+      <div class="metric-box"><div class="metric-label">Checks Failed</div><div class="metric-value">${checks.fails ?? 0}</div></div>
+      <div class="metric-box"><div class="metric-label">Checks Pass Rate (%)</div><div class="metric-value">${(checksPassRate * 100).toFixed(2)}</div></div>
+      <div class="metric-box"><div class="metric-label">Checks Fail Rate (%)</div><div class="metric-value">${(checksFailRate * 100).toFixed(2)}</div></div>
     </div>
 
     <h2>Pass vs Fail</h2>
